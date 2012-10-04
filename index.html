@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Guitar Amp</title>
+        <link rel="stylesheet" href="master.css"/>
+        <script src="//use.typekit.net/iij2wcl.js"></script>
+        <script>try{Typekit.load();}catch(e){}</script>
+    </head>
+    <body>
+        <div id="container">
+            <h1 class="tk-orgovan-rounded-web">Conference Crusher</h1>
+            <div class="hold-me">
+                <ul class="labels">
+                    <li><label for="volume">Volume</label></li>
+                    <li><label for="distortion">Distortion</label></li>
+                    <li><label for="bass">Bass</label></li>
+                    <li><label for="treble">Treble</label></li>
+                    <li><label for="reverb">Reverb</label></li>
+                </ul>
+
+                <ul>
+                    <li><input type="text" value="20" data-max="100" data-width="80" data-fgColor="#F2ED63" data-bgColor="#A4A2C4" class="dial" id="volume"/></li>
+                    <li><input type="text" value="0" data-width="80" class="dial" data-fgColor="#F2ED63" data-bgColor="#A4A2C4" id="distortion"/></li>
+                    <li><input type="text" value="0" data-width="80" class="dial" data-fgColor="#F2ED63" data-bgColor="#A4A2C4" id="bass"/></li>
+                    <li><input type="text" value="20" data-width="80" class="dial" data-fgColor="#F2ED63" data-bgColor="#A4A2C4" id="treble"/></li>
+                    <li><input type="text" value="20" data-width="80" class="dial" data-fgColor="#F2ED63" data-bgColor="#A4A2C4" id="reverb"/></li>
+                </ul>
+
+                <label for="bttf">Back to the Future</label>
+                <input type="checkbox" id="bttf"/>
+            </div>
+        </div>
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.1/jquery.min.js"></script>
+        <script src="jquery.kontrol.js"></script>
+        <script src="raphael-min.js"></script>
+        <script>
+            var context = new webkitAudioContext();
+
+            var makeBassNode = function () {
+                var bass = context.createBiquadFilter();
+ 
+                bass.type = 3;
+                bass.frequency.value = 440;
+                bass.Q.value = 0;
+                bass.gain.value = $('#bass').val();
+
+                return bass;
+            }
+
+            var makeTrebleNode = function () {
+                var treble = context.createBiquadFilter();
+ 
+                treble.type = 4;
+                treble.frequency.value = 1700;
+                treble.Q.value = 0;
+                treble.gain.value = $('#treble').val();
+
+                return treble;
+            }
+
+            var makeDelayNode = function (time) {
+                var delay = context.createDelayNode(10);
+
+                delay.delayTime.value = time;
+
+                return delay;
+            }
+
+            var makeDistortionCurve = function (noOfSamples, amountOfDistortion) {
+                if (typeof amountOfDistortion === 'undefined') {
+                    amountOfDistortion = 0.1;
+                }
+                var k = 2 * amountOfDistortion/ (1 - amountOfDistortion),
+                    curve = new Float32Array(noOfSamples);
+
+                for (var i = 0; i < noOfSamples; i++) {
+                    var x = (i - 0) * (1 - (-1)) / (noOfSamples - 0) + (-1);
+                    curve[i] = (1 + k) * x / (1+ k * Math.abs(x));
+                }
+
+                return curve;
+            }
+            var volumeNode = context.createGainNode(),
+                distortionNode = context.createWaveShaper(),
+                bassNode = makeBassNode(),
+                trebleNode = makeTrebleNode(),
+                delayNode = makeDelayNode(0);
+
+            $('#bttf').change(function () {
+                if ($(this).attr('checked') === 'checked') {
+                    delayNode.delayTime.value = 10;
+                } else {
+                    delayNode.delayTime.value = 0;
+                }
+            })
+
+            $(function () {
+                $('#volume').dial({'change': function (v) {
+                    volumeNode.gain.value = v / 100;
+                }});
+
+                $('#distortion').dial({'change': function (v) {
+                    distortionNode.curve = makeDistortionCurve(context.sampleRate, v / 100);
+                }});
+
+                $('#bass').dial({'change': function (v) {
+                    bassNode.gain.value = v / 100;
+                }});
+
+                $('#treble').dial({'change': function (v) {
+                    trebleNode.gain.value = v / 100;
+                }});
+
+                $('#reverb').dial({'change': function (v) {
+                    //
+                }});
+            })
+
+            function gotStream(stream) {
+                var guitar = context.createMediaStreamSource(stream);
+
+                volumeNode.gain.value = $('#volume').val() / 100;
+
+                distortionNode.curve = makeDistortionCurve(context.sampleRate)
+
+                guitar.connect(distortionNode); 
+                distortionNode.connect(bassNode);
+                bassNode.connect(trebleNode);
+                trebleNode.connect(delayNode);
+                delayNode.connect(volumeNode);
+                volumeNode.connect(context.destination)
+            }
+            navigator.webkitGetUserMedia({audio: true}, gotStream);
+        </script>
+    </body>
+</html>
